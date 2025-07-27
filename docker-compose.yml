@@ -39,6 +39,25 @@ services:
     command: scheduler
     networks:
       - fraud-detection
+  mc:
+    image: minio/mc
+    platform: linux/amd64
+    depends_on:
+      - minio
+    container_name: mc
+    env_file:
+      - .env
+    entrypoint: >
+      /bin/sh -c "
+      /tmp/wait-for-it.sh minio:9000 &&
+      /usr/bin/mc alias set minio http://minio:9000 ${AWS_ACCESS_KEY_ID} ${AWS_SECRET_ACCESS_KEY} &&
+      /usr/bin/mc mb minio/mlflow;
+      exit 0;
+      "
+    volumes:
+      - ./wait-for-it.sh:/tmp/wait-for-it.sh
+    networks:
+      - fraud-detection
   minio:
     image: minio/minio
     container_name: minio
