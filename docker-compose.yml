@@ -39,6 +39,29 @@ services:
     command: scheduler
     networks:
       - fraud-detection
+  fastapi:
+    build:
+      context: ./api      # <— folder that contains Dockerfile + app/
+      dockerfile: Dockerfile
+    env_file: .env            # JWT_SECRET, DB_URL, KAFKA_BOOTSTRAP …
+    ports:
+      - "8000:8000"           # host:container
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:                
+      - ./config.yaml:/app/config.yaml:ro   # mount file read-only
+      - ./models:/app/models                
+      - ./.env:/app/.env:ro                
+    networks:
+      - fraud-detection
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 30s
+      retries: 3
   mc:
     image: minio/mc
     platform: linux/amd64
