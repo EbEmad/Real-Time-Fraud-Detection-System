@@ -25,6 +25,8 @@ services:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/logs:/opt/airflow/logs
       - ./models:/opt/airflow/models
+      - ./.env:/opt/airflow/.env:ro
+      - ./config.yaml:/opt/airflow/config.yaml:ro
     ports:
       - "8080:8080"
     entrypoint: /Airflow.sh
@@ -48,6 +50,8 @@ services:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/logs:/opt/airflow/logs
       - ./models:/opt/airflow/models
+      - ./.env:/opt/airflow/.env:ro
+      - ./config.yaml:/opt/airflow/config.yaml:ro
     entrypoint: /Airflow.sh
     command: scheduler
     networks:
