@@ -5,6 +5,12 @@ services:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: airflow
       POSTGRES_DB: airflow
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    restart: always
     networks:
       - fraud-detection
 
@@ -131,6 +137,7 @@ services:
   
   mlflow-server:
     build: ./mlflow
+    restart: always
     image: mlflow-server
     container_name: mlflow-server
     depends_on:
