@@ -62,45 +62,29 @@ services:
     command: scheduler
     networks:
       - fraud-detection
-  fastapi:
-    build:
-      context: ./api      # <— folder that contains Dockerfile + app/
-      dockerfile: Dockerfile
-    env_file: .env            # JWT_SECRET, DB_URL, KAFKA_BOOTSTRAP …
-    ports:
-      - "8000:8000"           # host:container
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_started
-    volumes:                
-      - ./config.yaml:/app/config.yaml:ro   # mount file read-only
-      - ./models:/app/models                
-      - ./.env:/app/.env:ro                
-    networks:
-      - fraud-detection
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
-      interval: 30s
-      retries: 3
-  redis:
-    # Redis is limited to 7.2-bookworm due to licencing change
-    # https://redis.io/blog/redis-adopts-dual-source-available-licensing/
-    image: redis:7.2-bookworm   # latest *OSS* tag before licence change
-    container_name: redis
-    ports:                      # bind host-port → container-port
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 30s
-      retries: 5
-      start_period: 30s
-    restart: always
-    networks:
-      - fraud-detection
+  # fastapi:
+  #   build:
+  #     context: ./api      # <— folder that contains Dockerfile + app/
+  #     dockerfile: Dockerfile
+  #   env_file: .env            # JWT_SECRET, DB_URL, KAFKA_BOOTSTRAP …
+  #   ports:
+  #     - "8000:8000"           # host:container
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_started
+  #   volumes:                
+  #     - ./config.yaml:/app/config.yaml:ro   # mount file read-only
+  #     - ./models:/app/models                
+  #     - ./.env:/app/.env:ro                
+  #   networks:
+  #     - fraud-detection
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+  #     interval: 30s
+  #     retries: 3
   mc:
     image: minio/mc
     platform: linux/amd64
@@ -134,7 +118,7 @@ services:
       - ./minio_data:/data
     networks:
       - fraud-detection
-  
+  # mlflow server initialization
   mlflow-server:
     build: ./mlflow
     restart: always
@@ -145,47 +129,49 @@ services:
       - postgres
     environment:
       - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      # - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      # - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+    ports:
+      - "5500:5500"
     command: mlflow server --port 5500 --host 0.0.0.0 --backend-store-uri postgresql+psycopg2://mlflow:mlflow@postgres/mlflow --default-artifact-root s3://mlflow
     networks:
       - fraud-detection
 
-  producer:
-    build: ./producer
-    env_file: .env
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          cpus: '1'
-          memory: 6G
-    networks:
-      - fraud-detection
+  # producer:
+  #   build: ./producer
+  #   env_file: .env
+  #   deploy:
+  #     replicas: 2
+  #     resources:
+  #       limits:
+  #         cpus: '1'
+  #         memory: 6G
+  #   networks:
+  #     - fraud-detection
 
-  kafka-connsumer:
-    build:
-      context: ./api
-      dockerfile: Dockerfile
-    command: python -m app.kafka_consumer
-    env_file: .env
-    depends_on:
-      - postgres
-    volumes:
-      - ./models:/app/models
-      - ./config.yaml:/app/config.yaml
-      - ./.env:/app/.env
-    networks:
-      - fraud-detection
-  inference:
-    build: ./inference
-    env_file: .env
-    volumes:
-      - ./models:/app/models
-      - ./config.yaml:/app/config.yaml
-      - ./env:/app/.env
-    networks:
-      - fraud-detection
+  # kafka-connsumer:
+  #   build:
+  #     context: ./api
+  #     dockerfile: Dockerfile
+  #   command: python -m app.kafka_consumer
+  #   env_file: .env
+  #   depends_on:
+  #     - postgres
+  #   volumes:
+  #     - ./models:/app/models
+  #     - ./config.yaml:/app/config.yaml
+  #     - ./.env:/app/.env
+  #   networks:
+  #     - fraud-detection
+  # inference:
+  #   build: ./inference
+  #   env_file: .env
+  #   volumes:
+  #     - ./models:/app/models
+  #     - ./config.yaml:/app/config.yaml
+  #     - ./env:/app/.env
+  #   networks:
+      # - fraud-detection
 
 
 networks:

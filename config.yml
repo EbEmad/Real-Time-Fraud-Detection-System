@@ -1,45 +1,6 @@
 mlflow:
   experiment_name: "fraud_detection_"
   registered_model_name: "fraud_detection_xgboost"
-  artifact_location: "s3://mlflow/fraud_detection"
-  s3_endpoint_url: ${S3_ENDPOINT_URL}
-  bucket: "mlflow"
-
-kafka:
-  bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS}
-  username: ${KAFKA_USERNAME}
-  password: ${KAFKA_PASSWORD}
-  topic: "transactions"
-  output_topic: "fraud_predictions"
-  security_protocol: "SASL_SSL"
-  sasl_mechanism: "PLAIN"
-  timeout: 600000
-
-model:
-  test_size: 0.2
-  seed: 42 # makes sure model is constant 
-  params:
-    n_estimators: 300
-    learning_rate: 0.05
-    max_depth: 5
-    subsample: 0.8
-    colsample_bytree: 0.8
-    scale_pos_weight: 1
-    tree_method: 'hist'
-  path: "/app/models/fraud_detection_model.pkl"
-
-spark:
-  app_name: 'FraudDetectionInference'
-  packages: "org.mlflow:mlflow-spark:2.6.0,com.google.guava:guava:30.1.1-jre,org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.4,org.apache.hadoop:hadoop-aws:3.3.0,com.amazonaws:aws-java-sdk:1.11.469"
-  shuffle_partitions: 200
-  checkpoint_location: 'checkpoint'
-
-
-
-=======
-mlflow:
-  experiment_name: "fraud_detection_"
-  registered_model_name: "fraud_detection_xgboost"
   tracking_uri: ${TRACKING_URI}
   artifact_location: "s3://mlflow/fraud_detection"
   s3_endpoint_url: ${S3_ENDPOINT_URL}
