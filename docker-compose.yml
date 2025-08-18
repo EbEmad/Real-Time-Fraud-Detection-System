@@ -9,34 +9,105 @@ services:
       - fraud-detection
 
   webserver:
-    build: .
+    build:
+      context: ./airflow
+      dockerfile: Dockerfile
+      target: airflow
     environment:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
       - AIRFLOW__WEBSERVER__SECRET_KEY=mysecretkey
       - AIRFLOW__CORE__FERNET_KEY=GgyJ5jUehSy2zQqY958eUWW1ezEgNp4OerBy-AKuD14=
+      - MLFLOW_TRACKING_URI=http://mlflow-server:5500
+      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
+
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/logs:/opt/airflow/logs
+      - ./models:/opt/airflow/models
     ports:
       - "8080:8080"
-    entrypoint: /airflow_init.sh
+    entrypoint: /Airflow.sh
     command: webserver
     networks:
       - fraud-detection
 
   scheduler:
-    build: .
+    build:
+      context: ./airflow
+      dockerfile: Dockerfile
+      target: airflow
     environment:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
       - AIRFLOW__WEBSERVER__SECRET_KEY=mysecretkey
       - AIRFLOW__CORE__FERNET_KEY=GgyJ5jUehSy2zQqY958eUWW1ezEgNp4OerBy-AKuD14=
+      - MLFLOW_TRACKING_URI=http://mlflow-server:5500
+      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/logs:/opt/airflow/logs
-    entrypoint: /airflow_init.sh
+      - ./models:/opt/airflow/models
+    entrypoint: /Airflow.sh
     command: scheduler
+    networks:
+      - fraud-detection
+  fastapi:
+    build:
+      context: ./api      # <— folder that contains Dockerfile + app/
+      dockerfile: Dockerfile
+    env_file: .env            # JWT_SECRET, DB_URL, KAFKA_BOOTSTRAP …
+    ports:
+      - "8000:8000"           # host:container
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:                
+      - ./config.yaml:/app/config.yaml:ro   # mount file read-only
+      - ./models:/app/models                
+      - ./.env:/app/.env:ro                
+    networks:
+      - fraud-detection
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 30s
+      retries: 3
+  redis:
+    # Redis is limited to 7.2-bookworm due to licencing change
+    # https://redis.io/blog/redis-adopts-dual-source-available-licensing/
+    image: redis:7.2-bookworm   # latest *OSS* tag before licence change
+    container_name: redis
+    ports:                      # bind host-port → container-port
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
+    restart: always
+    networks:
+      - fraud-detection
+  mc:
+    image: minio/mc
+    platform: linux/amd64
+    depends_on:
+      - minio
+    container_name: mc
+    env_file:
+      - .env
+    entrypoint: >
+      /bin/sh -c "
+      /tmp/wait-for-it.sh minio:9000 &&
+      /usr/bin/mc alias set minio http://minio:9000 ${AWS_ACCESS_KEY_ID} ${AWS_SECRET_ACCESS_KEY} &&
+      /usr/bin/mc mb minio/mlflow;
+      exit 0;
+      "
+    volumes:
+      - ./wait-for-it.sh:/tmp/wait-for-it.sh
     networks:
       - fraud-detection
   minio:
@@ -50,7 +121,7 @@ services:
       - MINIO_ROOT_USER=${MINIO_USERNANME}
       - MINIO_ROOT_PASSWORD=${MINIO_PASSWORD}
     volumes:
-      - minio_data:/data
+      - ./minio_data:/data
     networks:
       - fraud-detection
   
