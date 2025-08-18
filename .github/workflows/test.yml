@@ -3,7 +3,11 @@ name: Test Docker Setup
 on:
     push:
         branches:
+            - master
+    pull_request:
+        branches:
             - main
+
 jobs:
     docker-compose-test:
         runs-on: ubuntu-latest
