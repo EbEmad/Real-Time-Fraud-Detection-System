@@ -1,0 +1,24 @@
+name: Test Docker Setup
+
+on:
+    push:
+        branches:
+            - main
+jobs:
+    docker-compose-test:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout Repository
+              uses: actions/checkout@v2
+            - name: Validate Docker Compose
+              run: docker compose -f docker-compose.yml config
+            - name: Start Containers
+              run: |
+                docker compose -f docker-compose.yml up -d
+                echo "Containers started successfully."
+                sleep 15
+            - name: Checkout running containers
+              run: docker ps
+            - name: Stop Containers
+              if: always()
+              run: docker compose -f docker-compose.yml down
