@@ -9,33 +9,46 @@ services:
       - fraud-detection
 
   webserver:
-    build: .
+    build:
+      context: ./airflow
+      dockerfile: Dockerfile
+      target: airflow
     environment:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
       - AIRFLOW__WEBSERVER__SECRET_KEY=mysecretkey
       - AIRFLOW__CORE__FERNET_KEY=GgyJ5jUehSy2zQqY958eUWW1ezEgNp4OerBy-AKuD14=
+      - MLFLOW_TRACKING_URI=http://mlflow-server:5500
+      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
+
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/logs:/opt/airflow/logs
+      - ./models:/opt/airflow/models
     ports:
       - "8080:8080"
-    entrypoint: /airflow_init.sh
+    entrypoint: /Airflow.sh
     command: webserver
     networks:
       - fraud-detection
 
   scheduler:
-    build: .
+    build:
+      context: ./airflow
+      dockerfile: Dockerfile
+      target: airflow
     environment:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
       - AIRFLOW__WEBSERVER__SECRET_KEY=mysecretkey
       - AIRFLOW__CORE__FERNET_KEY=GgyJ5jUehSy2zQqY958eUWW1ezEgNp4OerBy-AKuD14=
+      - MLFLOW_TRACKING_URI=http://mlflow-server:5500
+      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/logs:/opt/airflow/logs
-    entrypoint: /airflow_init.sh
+      - ./models:/opt/airflow/models
+    entrypoint: /Airflow.sh
     command: scheduler
     networks:
       - fraud-detection
