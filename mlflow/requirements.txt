@@ -1,4 +1,3 @@
-cryptography
-boto3
-mlflow
-psycopg2-binary
+mlflow==2.14.1
+psycopg2-binary==2.9.9
+gunicorn==21.2.0
