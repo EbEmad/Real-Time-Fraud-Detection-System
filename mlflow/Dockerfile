@@ -1,12 +1,30 @@
-FROM python:3.10.16-slim-bookworm
-WORKDIR /app
-COPY requirements.txt /app/requirements.txt
+FROM python:3.10-slim
 
-# Install dependencies
-RUN pip install -r /app/requirements.txt
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
-# Copy the rest of the application
-COPY . .
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+  && rm -rf /var/lib/apt/lists/*
 
-# Set the command to run your application
-EXPOSE 5500
+RUN pip install --no-cache-dir \
+    mlflow==2.14.1 \
+    psycopg2-binary==2.9.9 \
+    gunicorn==21.2.0
+
+ENV BACKEND_STORE_URI="postgresql+psycopg2://admin:admin@postgres:5432/mlflow" \
+    ARTIFACT_ROOT="/mlflow/artifacts"
+
+EXPOSE 5000
+
+VOLUME ["/mlflow/artifacts"]
+
+CMD mlflow server \
+    --host 0.0.0.0 \
+    --port 5000 \
+    --backend-store-uri "$BACKEND_STORE_URI" \
+    --artifacts-destination "$ARTIFACT_ROOT"
+
+
+
