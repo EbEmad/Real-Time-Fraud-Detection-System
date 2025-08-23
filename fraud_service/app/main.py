@@ -122,3 +122,4 @@ class ModelWrapper:
     @property
     def version(self)-> Optional[str]:
         return self._model_version
+
