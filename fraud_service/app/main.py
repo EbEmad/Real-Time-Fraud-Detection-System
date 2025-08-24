@@ -123,3 +123,85 @@ class ModelWrapper:
     def version(self)-> Optional[str]:
         return self._model_version
 
+model_wrapper=ModelWrapper()
+
+@app.on_event("startup")
+def on_startup()->None:
+    ensure_table()
+    model_wrapper.load()
+    threading.Thread(target=_consumer_loop,daemon=True).start()
+    threading.Thread(target=_periodic_model_refresh,daemon=True).start()
+
+
+@app.get("/health")
+def health()-> Dict[str,str]:
+    return {"status","ok"}
+
+
+@app.post("/predict")
+def predict(transaction:Transaction)->Dict[str,Any]:
+    features=dict(transaction.features)
+    features["amount"]=transaction.amount
+    proba=model_wrapper.predict_proba(features)
+    pred=int(proba>=0.5)
+    _write_prediction(transaction.transaction_id,transaction.amount,features,pred,proba,json.loads(transaction.model_dump_json()))
+    return {"prediction":pred,"proba":proba,"model_version":model_wrapper.version}
+
+
+def _periodic_model_refresh()->None:
+    while True:
+        try:
+            model_wrapper.load()
+        except Exception:
+            pass
+        time.sleep(60)
+
+
+def _consumer_loop() -> None:
+    # Wait for Kafka to be available
+    time.sleep(5)
+    consumer = None
+    while consumer is None:
+        try:
+            consumer = KafkaConsumer(
+                KAFKA_TOPIC,
+                bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+                value_deserializer=lambda v: json.loads(v.decode("utf-8")),
+                auto_offset_reset="earliest",
+                enable_auto_commit=True,
+                group_id="fraud-service-group",
+                consumer_timeout_ms=1000,
+            )
+        except Exception:
+            time.sleep(2)
+    for msg in consumer:
+        payload = msg.value
+        try:
+            transaction_id = str(payload.get("transaction_id"))
+            amount = float(payload.get("amount", 0.0))
+            features = dict(payload.get("features", {}))
+            features["amount"] = amount
+            proba = model_wrapper.predict_proba(features)
+            pred = int(proba >= 0.5)
+            _write_prediction(transaction_id, amount, features, pred, proba, payload)
+        except Exception:
+            continue
+def _write_prediction(
+    transaction_id: str,
+    amount: float,
+    features: Dict[str, Any],
+    prediction: int,
+    proba: float,
+    raw_payload: Dict[str, Any],
+) -> None:
+    record = {
+        "transaction_id": transaction_id,
+        "amount": amount,
+        "features": features,
+        "prediction": prediction,
+        "proba": proba,
+        "model_version": model_wrapper.version,
+        "raw_payload": raw_payload,
+    }
+    with engine.begin() as conn:
+        conn.execute(predictions_table.insert().values(**record))
