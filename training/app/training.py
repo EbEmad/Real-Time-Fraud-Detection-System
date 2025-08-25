@@ -84,4 +84,27 @@ def main() -> None:
                 if hasattr(self.model,"predict_proba"):
                     return self.model.predict_proba(xs)
                 return self.model.predict(xs)
+        wrapped=SklearnWrapper(scaler,clf)
 
+        mlflow.pyfunc.log_model(
+            artifact_path="model",
+            python_model=wrapped,
+            registered_model_name=registered_model_name,
+            signature=signature,
+        )
+
+        # Transition latest model version to Production
+        client = mlflow.tracking.MlflowClient()
+        versions = client.get_latest_versions(registered_model_name)
+        if versions:
+            v = sorted(versions, key=lambda m: int(m.version))[-1]
+            client.transition_model_version_stage(
+                name=registered_model_name,
+                version=v.version,
+                stage="Production",
+                archive_existing_versions=True,
+            )
+    print("Training complete. AUC=", auc_score)
+
+if __name__=="__main__":
+    main()
