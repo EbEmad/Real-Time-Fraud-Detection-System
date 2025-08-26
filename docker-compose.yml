@@ -91,30 +91,65 @@ services:
     depends_on:
       - kafka
 
-  airflow:
+  airflow-init:
     build:
       context: ./services/airflow
       dockerfile: Dockerfile
-    container_name: airflow
+    container_name: airflow-init
     environment:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://admin:admin@postgres:5432/airflow
       - AIRFLOW__CORE__LOAD_EXAMPLES=false
       - AIRFLOW_UID=50000
-      - AIRFLOW__WEBSERVER__SECRET_KEY=supersecretkeychangeme
+      - PYTHONWARNINGS=ignore
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - airflow_logs:/opt/airflow/logs
+    depends_on:
+      - postgres
+    command: bash -c "airflow db migrate && airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin || true"
+
+  airflow-scheduler:
+    build:
+      context: ./services/airflow
+      dockerfile: Dockerfile
+    container_name: airflow-scheduler
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://admin:admin@postgres:5432/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=false
       - PYTHONWARNINGS=ignore
       - MLFLOW_TRACKING_URI=http://mlflow:5000
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - airflow_logs:/opt/airflow/logs
       - ./services/training/app:/opt/airflow/train_app:ro
-    ports:
-      - "8080:8080"
     depends_on:
+      - airflow-init
       - postgres
       - mlflow
-    command: bash -c "airflow db migrate && airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin && airflow scheduler & exec airflow webserver"
+    command: ["airflow", "scheduler"]
 
+  airflow-webserver:
+    build:
+      context: ./services/airflow
+      dockerfile: Dockerfile
+    container_name: airflow-webserver
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://admin:admin@postgres:5432/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=false
+      - AIRFLOW__WEBSERVER__SECRET_KEY=supersecretkeychangeme
+      - PYTHONWARNINGS=ignore
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - airflow_logs:/opt/airflow/logs
+    depends_on:
+      - airflow-init
+      - postgres
+    ports:
+      - "8080:8080"
+    command: ["airflow", "webserver"]
   # grafana:
   #   image: grafana/grafana:10.4.5
   #   container_name: grafana
