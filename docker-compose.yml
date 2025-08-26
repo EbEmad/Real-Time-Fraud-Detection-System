@@ -130,6 +130,7 @@ services:
   #   depends_on:
   #     - postgres
 
+
 volumes:
   kafka_data: {}
   pg_data: {}
