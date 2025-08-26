@@ -1,179 +1,140 @@
-services:
-  postgres:
-    image: postgres:13
-    environment:
-      POSTGRES_USER: airflow
-      POSTGRES_PASSWORD: airflow
-      POSTGRES_DB: airflow
-    healthcheck:
-      test: ["CMD", "pg_isready", "-U", "airflow"]
-      interval: 10s
-      retries: 5
-      start_period: 5s
-    restart: always
-    networks:
-      - fraud-detection
+version: '3.9'
 
-  webserver:
+services:
+  kafka:
+    image: bitnami/kafka:3.7
+    container_name: kafka
+    environment:
+      - KAFKA_ENABLE_KRAFT=yes
+      - KAFKA_CFG_NODE_ID=1
+      - KAFKA_CFG_PROCESS_ROLES=broker,controller
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
+      - KAFKA_CFG_LISTENERS=INTERNAL://:9092,CONTROLLER://:9093
+      - KAFKA_CFG_ADVERTISED_LISTENERS=INTERNAL://kafka:9092
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=INTERNAL
+      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+      - KAFKA_LOG_DIRS=/bitnami/kafka/data
+      - ALLOW_PLAINTEXT_LISTENER=yes
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka_data:/bitnami/kafka
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=local
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092
+    ports:
+      - "8085:8080"
+    depends_on:
+      - kafka
+
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=admin
+      - POSTGRES_DB=frauddb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./scripts/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  mlflow:
     build:
-      context: ./airflow
+      context: ./services/mlflow
       dockerfile: Dockerfile
-      target: airflow
+    container_name: mlflow
+    environment:
+      - BACKEND_STORE_URI=postgresql+psycopg2://admin:admin@postgres:5432/mlflow
+      - ARTIFACT_ROOT=/mlflow/artifacts
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_artifacts:/mlflow/artifacts
+    depends_on:
+      - postgres
+
+  fraud-service:
+    build:
+      context: ./services/fraud_service
+      dockerfile: Dockerfile
+    container_name: fraud-service
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_TOPIC=transactions
+      - POSTGRES_URI=postgresql+psycopg2://admin:admin@postgres:5432/frauddb
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - MLFLOW_MODEL_NAME=fraud_detector
+      - MLFLOW_MODEL_STAGE=Production
+    ports:
+      - "8000:8000"
+    depends_on:
+      - kafka
+      - postgres
+      - mlflow
+
+  producer:
+    build:
+      context: ./services/producer
+      dockerfile: Dockerfile
+    container_name: producer
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_TOPIC=transactions
+      - PRODUCE_RATE_PER_SEC=2
+    depends_on:
+      - kafka
+
+  airflow:
+    build:
+      context: ./services/airflow
+      dockerfile: Dockerfile
+    container_name: airflow
     environment:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
-      - AIRFLOW__WEBSERVER__SECRET_KEY=mysecretkey
-      - AIRFLOW__CORE__FERNET_KEY=GgyJ5jUehSy2zQqY958eUWW1ezEgNp4OerBy-AKuD14=
-      - MLFLOW_TRACKING_URI=http://mlflow-server:5500
-      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
-
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://admin:admin@postgres:5432/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=false
+      - AIRFLOW_UID=50000
+      - AIRFLOW__WEBSERVER__SECRET_KEY=supersecretkeychangeme
+      - PYTHONWARNINGS=ignore
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
     volumes:
       - ./airflow/dags:/opt/airflow/dags
-      - ./airflow/logs:/opt/airflow/logs
-      - ./models:/opt/airflow/models
-      - ./.env:/opt/airflow/.env:ro
-      - ./config.yaml:/opt/airflow/config.yaml:ro
+      - airflow_logs:/opt/airflow/logs
+      - ./services/training/app:/opt/airflow/train_app:ro
     ports:
       - "8080:8080"
-    entrypoint: /Airflow.sh
-    command: webserver
-    networks:
-      - fraud-detection
-
-  scheduler:
-    build:
-      context: ./airflow
-      dockerfile: Dockerfile
-      target: airflow
-    environment:
-      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
-      - AIRFLOW__WEBSERVER__SECRET_KEY=mysecretkey
-      - AIRFLOW__CORE__FERNET_KEY=GgyJ5jUehSy2zQqY958eUWW1ezEgNp4OerBy-AKuD14=
-      - MLFLOW_TRACKING_URI=http://mlflow-server:5500
-      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
-    volumes:
-      - ./airflow/dags:/opt/airflow/dags
-      - ./airflow/logs:/opt/airflow/logs
-      - ./models:/opt/airflow/models
-      - ./.env:/opt/airflow/.env:ro
-      - ./config.yaml:/opt/airflow/config.yaml:ro
-    entrypoint: /Airflow.sh
-    command: scheduler
-    networks:
-      - fraud-detection
-  # fastapi:
-  #   build:
-  #     context: ./api      # <— folder that contains Dockerfile + app/
-  #     dockerfile: Dockerfile
-  #   env_file: .env            # JWT_SECRET, DB_URL, KAFKA_BOOTSTRAP …
-  #   ports:
-  #     - "8000:8000"           # host:container
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_started
-  #   volumes:                
-  #     - ./config.yaml:/app/config.yaml:ro   # mount file read-only
-  #     - ./models:/app/models                
-  #     - ./.env:/app/.env:ro                
-  #   networks:
-  #     - fraud-detection
-  #   restart: unless-stopped
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
-  #     interval: 30s
-  #     retries: 3
-  mc:
-    image: minio/mc
-    platform: linux/amd64
     depends_on:
-      - minio
-    container_name: mc
-    env_file:
-      - .env
-    entrypoint: >
-      /bin/sh -c "
-      /tmp/wait-for-it.sh minio:9000 &&
-      /usr/bin/mc alias set minio http://minio:9000 ${AWS_ACCESS_KEY_ID} ${AWS_SECRET_ACCESS_KEY} &&
-      /usr/bin/mc mb minio/mlflow;
-      exit 0;
-      "
-    volumes:
-      - ./wait-for-it.sh:/tmp/wait-for-it.sh
-    networks:
-      - fraud-detection
-  minio:
-    image: minio/minio
-    container_name: minio
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    command: server /data --console-address ':9001' --address ':9000'
-    environment:
-      - MINIO_ROOT_USER=${MINIO_USERNANME}
-      - MINIO_ROOT_PASSWORD=${MINIO_PASSWORD}
-    volumes:
-      - ./minio_data:/data
-    networks:
-      - fraud-detection
-  # mlflow server initialization
-  mlflow-server:
-    build: ./mlflow
-    restart: always
-    image: mlflow-server
-    container_name: mlflow-server
-    depends_on:
-      - mc
       - postgres
-    environment:
-      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
-      # - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      # - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-    ports:
-      - "5500:5500"
-    command: mlflow server --port 5500 --host 0.0.0.0 --backend-store-uri postgresql+psycopg2://mlflow:mlflow@postgres/mlflow --default-artifact-root s3://mlflow
-    networks:
-      - fraud-detection
+      - mlflow
+    command: bash -c "airflow db migrate && airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin && airflow scheduler & exec airflow webserver"
 
-  # producer:
-  #   build: ./producer
-  #   env_file: .env
-  #   deploy:
-  #     replicas: 2
-  #     resources:
-  #       limits:
-  #         cpus: '1'
-  #         memory: 6G
-  #   networks:
-  #     - fraud-detection
-
-  # kafka-connsumer:
-  #   build:
-  #     context: ./api
-  #     dockerfile: Dockerfile
-  #   command: python -m app.kafka_consumer
-  #   env_file: .env
+  # grafana:
+  #   image: grafana/grafana:10.4.5
+  #   container_name: grafana
+  #   environment:
+  #     - GF_SECURITY_ADMIN_PASSWORD=admin
+  #   ports:
+  #     - "3000:3000"
+  #   volumes:
+  #     - grafana_data:/var/lib/grafana
+  #     - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+  #     - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+  #     - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
   #   depends_on:
   #     - postgres
-  #   volumes:
-  #     - ./models:/app/models
-  #     - ./config.yaml:/app/config.yaml
-  #     - ./.env:/app/.env
-  #   networks:
-  #     - fraud-detection
-  # inference:
-  #   build: ./inference
-  #   env_file: .env
-  #   volumes:
-  #     - ./models:/app/models
-  #     - ./config.yaml:/app/config.yaml
-  #     - ./env:/app/.env
-  #   networks:
-      # - fraud-detection
+
+volumes:
+  kafka_data: {}
+  pg_data: {}
+  mlflow_artifacts: {}
+  airflow_logs: {}
+  grafana_data: {}
 
 
-networks:
-  fraud-detection:
-    driver: bridge

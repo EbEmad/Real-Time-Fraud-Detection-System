@@ -1,18 +1,20 @@
-FROM apache/airflow:2.10.5 as airflow
+FROM apache/airflow:2.9.2-python3.10
 
-# Create models directory and set ownership
 USER root
-# Copy the entrypoint script
-COPY  scripts/Airflow.sh /Airflow.sh
-RUN chmod +x /Airflow.sh
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+  && rm -rf /var/lib/apt/lists/*
 
-# Switch back to airflow user for safety
 USER airflow
-# Copy requirements file
-COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir \
+    mlflow==2.14.1 \
+    scikit-learn==1.4.2 \
+    pandas==2.2.2 \
+    numpy==1.26.4 \
+    psycopg2-binary==2.9.9
 
-# Install Python packages as root (system-wide)
-RUN pip install -r /tmp/requirements.txt
 
-# Set the entrypoint to the entrypoint script
-ENTRYPOINT ["/Airflow.sh"]
+
+
+
