@@ -1,0 +1,71 @@
+{
+  "id": null,
+  "title": "Fraud Predictions",
+  "tags": ["fraud"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Predictions over time",
+      "gridPos": {"x": 0, "y": 0, "w": 24, "h": 8},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "postgres", "uid": "postgres-ds"},
+          "format": "time_series",
+          "rawSql": "SELECT event_time as time, AVG(prediction)::float as value FROM predictions GROUP BY 1 ORDER BY 1",
+          "timeColumn": "event_time",
+          "metricColumn": "none",
+          "group": [],
+          "where": [{"type": "macro", "name": "$__timeFilter", "params": ["event_time"]}]
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Fraud rate (last 1h)",
+      "gridPos": {"x": 0, "y": 8, "w": 6, "h": 4},
+      "targets": [
+        {
+          "refId": "B",
+          "datasource": {"type": "postgres", "uid": "postgres-ds"},
+          "format": "table",
+          "rawSql": "SELECT COALESCE(AVG(prediction)::float,0) as value FROM predictions WHERE event_time > NOW() - interval '1 hour'",
+          "group": []
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Avg amount (last 1h)",
+      "gridPos": {"x": 6, "y": 8, "w": 6, "h": 4},
+      "targets": [
+        {
+          "refId": "C",
+          "datasource": {"type": "postgres", "uid": "postgres-ds"},
+          "format": "table",
+          "rawSql": "SELECT COALESCE(AVG(amount),0) as value FROM predictions WHERE event_time > NOW() - interval '1 hour'",
+          "group": []
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Recent predictions",
+      "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+      "targets": [
+        {
+          "refId": "D",
+          "datasource": {"type": "postgres", "uid": "postgres-ds"},
+          "format": "table",
+          "rawSql": "SELECT event_time, transaction_id, amount, prediction, proba, model_version FROM predictions ORDER BY event_time DESC LIMIT 50",
+          "group": []
+        }
+      ]
+    }
+  ]
+}
+
+

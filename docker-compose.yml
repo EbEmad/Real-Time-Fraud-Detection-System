@@ -150,21 +150,21 @@ services:
     ports:
       - "8080:8080"
     command: ["airflow", "webserver"]
-  # grafana:
-  #   image: grafana/grafana:10.4.5
-  #   container_name: grafana
-  #   environment:
-  #     - GF_SECURITY_ADMIN_PASSWORD=admin
-  #   ports:
-  #     - "3000:3000"
-  #   volumes:
-  #     - grafana_data:/var/lib/grafana
-  #     - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
-  #     - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
-  #     - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
-  #   depends_on:
-  #     - postgres
 
+  grafana:
+    image: grafana/grafana:10.4.5
+    container_name: grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - postgres
 
 volumes:
   kafka_data: {}
