@@ -51,7 +51,7 @@ services:
       dockerfile: Dockerfile
     container_name: mlflow
     environment:
-      - BACKEND_STORE_URI=postgresql+psycopg2://admin:admin@postgres:5432/mlflow
+      - BACKEND_STORE_URI=postgresql+psycopg2://admin:admin@postgres:5432/frauddb
       - ARTIFACT_ROOT=/mlflow/artifacts
     ports:
       - "5000:5000"
