@@ -4,7 +4,7 @@ import random
 import time
 from datetime import datetime
 
-from dateutil.tz import tzutc
+from dateutil.tz import gettz
 from faker import Faker
 from kafka import KafkaProducer
 KAFKA_BOOTSTRAP_SERVERS=os.getenv("KAFKA_BOOTSTRAP_SERVERS","kafka:9092")
@@ -26,7 +26,7 @@ def generate_transaction()->dict:
         "features":{
             "num_items":int(max(1,random.gauss(2,1))),
             "merchant_risk": float(random.random()),
-            "hour": float(datetime.now(tz=tzutc()).hour),
+            "hour": float(datetime.now(tz=gettz("Africa/Cairo")).hour),
         },
         "event_time": datetime.utcnow().isoformat()+'Z',
     }
