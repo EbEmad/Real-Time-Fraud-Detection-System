@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir \
     psycopg2-binary==2.9.9 \
     gunicorn==21.2.0
 
-ENV BACKEND_STORE_URI="postgresql+psycopg2://admin:admin@postgres:5432/mlflow" \
+ENV BACKEND_STORE_URI="postgresql+psycopg2://admin:admin@postgres:5432/frauddb" \
     ARTIFACT_ROOT="/mlflow/artifacts"
 
 EXPOSE 5000
