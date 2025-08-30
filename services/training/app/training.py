@@ -1,7 +1,6 @@
 import os
 import random
 from typing import Tuple
-
 import mlflow
 import numpy as np
 import pandas as pd
@@ -61,6 +60,7 @@ def main() -> None:
     mlflow.set_tracking_uri(tracking_uri)
     mlflow.set_experiment(experiment_name)
 
+    # get the data and train the model
     df = generate_synthetic_data()
     clf, scaler, auc_score = train_model(df)
 
