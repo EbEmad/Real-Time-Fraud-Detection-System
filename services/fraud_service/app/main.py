@@ -36,7 +36,7 @@ metadata=MetaData()
 predictions_table=Table(
     "predictions",
     metadata,
-    Column("id",Integer,primary_key=True,utoincrement=True),
+    Column("id",Integer,primary_key=True,autoincrement=True),
     Column("event_time", DateTime(timezone=True), server_default=func.now()),
     Column("transaction_id", String(64), nullable=False),
     Column("amount", DOUBLE_PRECISION, nullable=False),
