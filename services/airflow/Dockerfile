@@ -13,8 +13,3 @@ RUN pip install --no-cache-dir \
     pandas==2.2.2 \
     numpy==1.26.4 \
     psycopg2-binary==2.9.9
-
-
-
-
-

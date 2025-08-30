@@ -24,4 +24,4 @@ ENV KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \
     MLFLOW_MODEL_NAME=fraud_detector \
     MLFLOW_MODEL_STAGE=Production
 
-CMD uvicorn app.main:app --host 0.0.0.0 --port 8000
+CMD uvicorn main:app --host 0.0.0.0 --port 8000

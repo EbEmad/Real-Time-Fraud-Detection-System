@@ -61,7 +61,7 @@ class Transaction(BaseModel):
     amount: float
     features: Dict[str, Any] = Field(default_factory=dict)
 
-FEATURE_ORDER=List[str]= ["amount", "num_items", "merchant_risk", "hour"]
+FEATURE_ORDER: List[str] = ["amount", "num_items", "merchant_risk", "hour"]
 
 
 class ModelWrapper:
