@@ -13,7 +13,7 @@ ENV KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \
     KAFKA_TOPIC=transactions \
     PRODUCE_RATE_PER_SEC=2
 
-CMD python -u app/producer.py
+CMD python -u producer.py
 
 
 
