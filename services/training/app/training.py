@@ -20,7 +20,11 @@ def generate_synthetic_data(n: int = 5000, seed: int = 42) -> pd.DataFrame:
     hour = np.random.randint(0, 24, size=n)
 
     # Latent fraud probability: high amount, high risk, odd hour
-    logits = 0.002 * amounts + 1.5 * merchant_risk + 0.05 * (hour.isin([0, 1, 2, 3, 23]).astype(float))
+    logits = (
+    0.002 * amounts
+    + 1.5 * merchant_risk
+    + 0.05 * np.isin(hour, [0, 1, 2, 3, 23]).astype(float)
+    )
     probs = 1 / (1 + np.exp(-(logits - 2.5)))
     y = (np.random.rand(n) < probs).astype(int)
 
