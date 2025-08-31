@@ -11,7 +11,7 @@ with DAG(
 ) as dag:
     train=BashOperator(
         task_id="train_model",
-        bash_command="python /opt/airflow/train_app/training_main.py",
+        bash_command="python /opt/airflow/train_app/training.py",
         env={
             "MLFLOW_TRACKING_URI": "http://mlflow:5000",
             "MLFLOW_EXPERIMENT_NAME": "fraud_detection",
