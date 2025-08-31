@@ -1,23 +1,7 @@
 -- Active: 1756565192162@@127.0.0.1@5432@frauddb
 -- Create additional databases for MLflow and Airflow if missing
-DO
-$$
-BEGIN
-   IF NOT EXISTS (SELECT FROM pg_database WHERE datname = 'mlflow') THEN
-      EXECUTE 'CREATE DATABASE mlflow';
-   END IF;
-END
-$$;
-
--- create airflow database if it doesn't exist
-DO
-$$
-BEGIN
-   IF NOT EXISTS (SELECT FROM pg_database WHERE datname = 'airflow') THEN
-      EXECUTE 'CREATE DATABASE airflow';
-   END IF;
-END
-$$;
+CREATE DATABASE mlflow;
+CREATE DATABASE airflow;
 
 -- Create predictions table in the default database ($POSTGRES_DB)
 CREATE TABLE IF NOT EXISTS public.predictions (
