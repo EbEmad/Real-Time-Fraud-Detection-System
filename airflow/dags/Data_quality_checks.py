@@ -45,7 +45,7 @@ def dq_checks():
 with DAG(
     dag_id='data_quality_checks',
     schedule_interval="*/10 * * * *",  # every 10 minutes
-    start_date=datetime(2025, 8, 28),
+    start_date=datetime(2025, 9, 1),
     catchup=False,
     description="Basic data quality checks on predictions table",
 
