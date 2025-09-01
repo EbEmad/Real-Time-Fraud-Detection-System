@@ -16,6 +16,7 @@ services:
       - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
       - KAFKA_LOG_DIRS=/bitnami/kafka/data
       - ALLOW_PLAINTEXT_LISTENER=yes
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
     ports:
       - "9092:9092"
     volumes:
@@ -37,7 +38,7 @@ services:
       - real-time
 
   postgres:
-    image: postgres:15
+    image: postgres:13
     container_name: postgres
     environment:
       - POSTGRES_USER=admin
@@ -57,7 +58,7 @@ services:
       dockerfile: Dockerfile
     container_name: mlflow
     environment:
-      - BACKEND_STORE_URI=postgresql+psycopg2://admin:admin@postgres:5432/frauddb
+      - BACKEND_STORE_URI=postgresql+psycopg2://admin:admin@postgres:5432/mlflow
       - ARTIFACT_ROOT=/mlflow/artifacts
     ports:
       - "5000:5000"
@@ -80,6 +81,8 @@ services:
       - MLFLOW_TRACKING_URI=http://mlflow:5000
       - MLFLOW_MODEL_NAME=fraud_detector
       - MLFLOW_MODEL_STAGE=Production
+    volumes:
+      - ./services/fraud_service/app:/app/
     ports:
       - "8000:8000"
     depends_on:
@@ -88,6 +91,11 @@ services:
       - mlflow
     networks:
       - real-time
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    develop:
+      watch:
+        - path: docker-compose.yml
+          action: rebuild
 
   producer:
     build:
@@ -160,6 +168,7 @@ services:
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - airflow_logs:/opt/airflow/logs
+      - ./services/training/app:/opt/airflow/train_app:ro
     depends_on:
       - airflow-init
       - postgres
@@ -171,7 +180,7 @@ services:
     command: ["airflow", "webserver"]
 
   grafana:
-    image: grafana/grafana:10.4.5
+    image: grafana/grafana:latest
     container_name: grafana
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
