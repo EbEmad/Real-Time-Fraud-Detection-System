@@ -4,7 +4,7 @@ import threading
 import time
 from contextlib import contextmanager
 from typing import Any, Dict, Optional, List
-
+import logging
 import mlflow
 import numpy as np
 from fastapi import FastAPI
@@ -132,12 +132,44 @@ def on_startup()->None:
     threading.Thread(target=_consumer_loop,daemon=True).start()
     threading.Thread(target=_periodic_model_refresh,daemon=True).start()
 
-
+ 
 @app.get("/health")
 def health()-> Dict[str,str]:
-    return {"status","ok"}
+    return {"status":"ok"}
 
+@app.get('/consumer-status')
+def consumer_status():
+    return {
+        "consumer_running": True,
+        "kafka_topic": KAFKA_TOPIC,
+        "kafka_servers": KAFKA_BOOTSTRAP_SERVERS
+    }
+@app.get("/test-consumer")
+def test_consumer():
+    # Manually consume one message
+    consumer = KafkaConsumer(
+        KAFKA_TOPIC,
+        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+        value_deserializer=lambda v: json.loads(v.decode("utf-8")),
+        auto_offset_reset="latest",
+        enable_auto_commit=False,
+        consumer_timeout_ms=5000,
+    )
+    
+    try:
+        message = next(consumer)
+        return {
+            "status": "success",
+            "message": message.value,
+            "topic": message.topic,
+            "partition": message.partition
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+    finally:
+        consumer.close()
 
+ 
 @app.post("/predict")
 def predict(transaction:Transaction)->Dict[str,Any]:
     features=dict(transaction.features)
@@ -150,14 +182,18 @@ def predict(transaction:Transaction)->Dict[str,Any]:
 
 def _periodic_model_refresh()->None:
     while True:
-        try:
+        try: 
             model_wrapper.load()
         except Exception:
-            pass
+            pass  
         time.sleep(60)
 
 
 def _consumer_loop() -> None:
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+    
     # Wait for Kafka to be available
     time.sleep(5)
     consumer = None
@@ -170,11 +206,20 @@ def _consumer_loop() -> None:
                 auto_offset_reset="earliest",
                 enable_auto_commit=True,
                 group_id="fraud-service-group",
-                consumer_timeout_ms=1000,
+                consumer_timeout_ms=5000,  # ← Increased timeout
             )
-        except Exception:
+            logger.info("Kafka consumer connected successfully")
+        except Exception as e:
+            logger.error(f"Failed to connect to Kafka: {e}")
             time.sleep(2)
+    
+    logger.info("Starting to consume messages...")
+    message_count = 0
+    
     for msg in consumer:
+        message_count += 1
+        logger.info(f"Received message #{message_count}: {msg.value}")
+        
         payload = msg.value
         try:
             transaction_id = str(payload.get("transaction_id"))
@@ -184,7 +229,9 @@ def _consumer_loop() -> None:
             proba = model_wrapper.predict_proba(features)
             pred = int(proba >= 0.5)
             _write_prediction(transaction_id, amount, features, pred, proba, payload)
-        except Exception:
+            logger.info(f"Processed transaction {transaction_id} - Prediction: {pred}, Probability: {proba}")
+        except Exception as e:
+            logger.error(f"Error processing message: {e}")
             continue
 def _write_prediction(
     transaction_id: str,
